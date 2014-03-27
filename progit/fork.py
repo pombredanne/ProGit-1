@@ -259,6 +259,7 @@ def new_request_pull(username, repo, commitid=None):
     """ Request pulling the changes from the fork into the project.
     """
     repo = progit.lib.get_project(SESSION, repo, user=username)
+    branch = flask.request.args.get('branch', None)
 
     if not repo:
         flask.abort(404)
@@ -274,8 +275,14 @@ def new_request_pull(username, repo, commitid=None):
 
     diff_commits = []
     diffs = []
+    branches = orig_repo.listall_branches()
+
     if not repo_obj.is_empty and not orig_repo.is_empty:
-        orig_commit = orig_repo[orig_repo.head.target]
+        if branch and branch in branches:
+            branch_obj = repo_obj.lookup_branch(branchname)
+            orig_commit = orig_repo[branch_obj.get_object().hex]
+        else:
+            orig_commit = orig_repo[orig_repo.head.target]
         repo_commit = repo_obj[commitid]
 
         for commit in repo_obj.walk(commitid, pygit2.GIT_SORT_TIME):
@@ -312,7 +319,7 @@ def new_request_pull(username, repo, commitid=None):
             )
         )
 
-    form = progit.forms.RequestPullForm()
+    form = progit.forms.RequestPullForm(branches=branches)
     if form.validate_on_submit():
         try:
             if orig_commit:
@@ -335,6 +342,8 @@ def new_request_pull(username, repo, commitid=None):
         except SQLAlchemyError, err:  # pragma: no cover
             SESSION.rollback()
             flask.flash(str(err), 'error')
+    elif flask.request.method == 'GET' and branches:
+        form.branch.data = 'master'
 
     return flask.render_template(
         'pull_request.html',
