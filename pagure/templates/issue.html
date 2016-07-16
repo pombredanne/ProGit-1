@@ -1,0 +1,696 @@
+{% extends "repo_master.html" %}
+{% from "_formhelper.html"
+    import render_field, render_bootstrap_field,
+           show_comment, show_initial_comment %}
+
+{% block title %}Issue #{{ issueid }}: {{issue.title | noJS(ignore="img") | safe }} - {{ repo.name }}{% endblock %}
+{% set tag = "home"%}
+
+{% block header %}
+<link href="{{ url_for('static', filename='emoji/emojione.sprites.css') }}"
+  rel="stylesheet" />
+<link href="{{ url_for('static', filename='selectize.bootstrap3.css') }}"
+  rel="stylesheet" />
+<link href="{{ url_for('static', filename='atwho/jquery.atwho.min.css') }}"
+  rel="stylesheet" />
+{% endblock %}
+
+{% block repo %}
+<div class="row m-t-2">
+  <form action="{{ url_for('update_issue', username=username,
+               repo=repo.name, issueid=issueid) }}" method="post"
+               onsubmit="return try_async_comment(this)">
+  {{ form.csrf_token }}
+
+  <div class="col-md-8">
+  <h2>
+    <span class="issueid label label-default">#{{ issueid }}</span>
+    <span id="issuetitle">{{issue.title | noJS("img") | safe }}</span>
+    {% if issue.private %}
+      <span class="oi red-icon" data-glyph="lock-locked" title="Private issue"></span>
+    {% endif %}
+  </h2>
+
+  <h5 class="text-muted">
+    <a href="#" data-toggle="tooltip">Created</a>
+    {{ issue.date_created | humanize}} by {{ issue.user.user }}
+  </h5>
+
+    {{ show_initial_comment(issue, username, repo,issueid, repo_admin, form) }}
+
+    <section id="comments">
+      {% if issue.comments %}
+        {% for comment in issue.comments %}
+        {% if comment.notification %}
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="pull-xs-right text-muted">
+                    <span title="{{ comment.date_created.strftime('%Y-%m-%d %H:%M:%S') }}">{{
+                        comment.date_created | humanize }}</span>
+                </div>
+                <small>{{ comment.comment | markdown | noJS | safe }}</small>
+              </div>
+            </div>
+          </div>
+        {% else %}
+          {{ show_comment(comment, comment.id, repo, username, issueid, form, repo_admin) }}
+        {% endif %}
+        {% endfor %}
+      {% endif %}
+    </section>
+
+    <div class="card">
+      <div class="card-header">
+
+        <section class="issue_comment add_comment">
+        {% if authenticated and form %}
+
+          <fieldset class="form-group">
+            <label for="comment"><strong>Add new comment</strong></label>
+            <small class="text-muted pull-xs-right">
+              <span class="btn btn-sm btn-secondary inactive"
+                aria-pressed="false" id="previewinmarkdown">Preview
+              </span>
+            </small>
+            <textarea class="form-control" rows=8 id="comment" name="comment"
+                placeholder="Enter your comment here" tabindex=1></textarea>
+
+            <div id="preview">
+            </div>
+          </fieldset>
+
+          Select files OR drag them into the comment field below.
+          <input id="file-picker" type="file" name="file" accept="image/*"
+            multiple tabindex=3 />
+          <fieldset id="progress" style="display: none">
+            <div class="progress-trough">
+              <div id="progress-bar" class="progress-bar">0%</div>
+            </div>
+          </fieldset>
+          <a href="http://daringfireball.net/projects/markdown/syntax"
+             target="_blank">Markdown Syntax</a>
+          <div>
+            <input type="submit" class="btn btn-primary"
+              value="Update Issue" tabindex=2 />
+            <input type="button" class="btn btn-secondary"
+              value="Clear" id="clear_comment" tabindex=4 />
+          </div>
+        {% else %}
+          <p>
+            <a href="{{ url_for('auth_login', next=request.url) }}">Login</a>
+            to comment on this ticket.
+          </p>
+        {% endif %}
+        </section>
+
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-block">
+
+          <fieldset class="form-group issue-metadata-display">
+            <label><strong>Status</strong></label>
+            <h2 id="status">
+              <span class="label {%
+                if issue.status|lower == 'invalid' %}label-danger{%
+                elif issue.status|lower == 'fixed' %}label-success{%
+                elif issue.status|lower == 'insufficient data' %}label-warning{%
+                elif issue.status|lower == 'duplicate' %}label-default{%
+                elif issue.status|lower == 'open' %}label-primary{%
+                endif %}">{{ issue.status }}</span>
+            </h2>
+          </fieldset>
+
+          {% if authenticated and repo_admin %}
+            {{ render_bootstrap_field(form.status,
+              formclass="issue-metadata-form") }}
+          {% endif%}
+
+          <fieldset class="form-group issue-metadata-display">
+            <label><strong>Tags</strong></label>
+              <h4 id="taglist">
+                {% for tag in issue.tags %}
+                  <a id="tag-{{ tag.tag }}" class="label label-default"
+                    href="{{ url_for('view_issues', username=username,
+                            repo=repo.name, tags=tag.tag) }}">
+                    {{ tag.tag }}
+                  </a>
+                {% endfor %}
+              </h4>
+          </fieldset>
+
+          {% if authenticated and repo_admin %}
+          <fieldset class="form-group issue-metadata-form">
+            <label for="tag"><strong>Tags</strong></label>
+             <input id="tag" type="text" placeholder="tag1, tag2" name="tag"
+                title="comma separated list of tags"
+                value="{{ issue.tags_text | join(',') }}" />
+          </fieldset>
+          {% endif%}
+
+          <fieldset class="form-group issue-metadata-display">
+            <label><strong>Assignee</strong></label>
+            <div id="assignee_plain">
+              {% if issue.assignee %}
+                  <a href="{{ url_for(
+                    'view_issues', username=username, repo=repo.name,
+                    assignee=issue.assignee.username) }}">
+                    {{ issue.assignee.username }}
+                  </a>
+              {% else %}
+                unassigned
+              {% endif %}
+              {% if authenticated and repo_admin
+                and (not issue.assignee or issue.assignee.username != g.fas_user.username) %}
+              <button class="btn btn-sm pull-xs-right" id="take-btn"
+                title="assign this issue to you">
+                  Take
+              </button>
+              {% endif %}
+            </div>
+          </fieldset>
+
+          {% if authenticated and repo_admin %}
+          <fieldset class="form-group issue-metadata-form">
+            <label for="assignee"><strong>Assignee</strong></label>
+            <input class="form-control" name="assignee" id="assignee"
+              placeholder="username"
+              value="{{ issue.assignee.username or '' }}" />
+          </fieldset>
+          {% endif%}
+
+          <fieldset class="form-group issue-metadata-display">
+            <label><strong>Blocked</strong></label>
+            <div id="blocklist">
+              {% for ticket in issue.parents %}
+                <a id="block-{{ ticket.id }}" class="label label-default"
+                  href="{{ url_for('view_issue', username=username,
+                            repo=repo.name, issueid=ticket.id)
+                  }}" >#{{ ticket.id }}</a>
+              {% endfor %}
+            </div>
+          </fieldset>
+
+          {% if authenticated and repo_admin %}
+                <fieldset class="form-group issue-metadata-form">
+                  <label for="blocks"><strong>Blocked</strong></label>
+                  <input class="form-control" id="blocks" type="text"
+                    placeholder="issue blocked" name="blocks"
+                    value="{{ issue.blocks_text | join(',') }}" />
+                </fieldset>
+          {% endif%}
+
+
+          <fieldset class="form-group issue-metadata-display">
+            <label><strong>Depends on</strong></label>
+            <div id="dependlist">
+              {% for ticket in issue.children %}
+                <a id="depend-{{ ticket.id }}" class="label label-default"
+                  href="{{ url_for('view_issue', username=username,
+                            repo=repo.name, issueid=ticket.id)
+                    }}">#{{ ticket.id }}</a>
+              {% endfor %}
+            </div>
+          </fieldset>
+
+          {% if authenticated and repo_admin %}
+            <fieldset class="form-group issue-metadata-form">
+              <label for="depends"><strong>Depends on</strong></label>
+              <input class="form-control" id="depends" type="text"
+                placeholder="issue depending" name="depends"
+                value="{{ issue.depends_text | join(',') }}" />
+            </fieldset>
+          {% endif%}
+
+          {% if repo.priorities %}
+          <fieldset class="form-group issue-metadata-display">
+            <label><strong>Priority</strong></label>
+            <div id="priority_plain">
+              {% if issue.priority %}
+              <span >{{ repo.priorities[issue.priority | string] }}</span>
+              {% endif %}
+            </div>
+          </fieldset>
+          {% if authenticated and repo_admin %}
+            {{ render_bootstrap_field(form.priority,
+              formclass="issue-metadata-form") }}
+          {% endif%}
+
+          {% endif %}
+
+          <input type="submit" class="btn btn-primary issue-metadata-form" value="Update">
+            <a class="btn btn-secondary issue-metadata-form editmetadatatoggle">
+              cancel
+            </a>
+          {% if authenticated and repo_admin %}
+            <a class="btn btn-secondary issue-metadata-display editmetadatatoggle">
+              Edit Metadata
+            </a>
+          {% endif %}
+      </div>
+    </div>
+  </div>
+
+  </form>
+</div>
+
+{% endblock %}
+
+{% block jscripts %}
+{{ super() }}
+<script type="text/javascript">
+  var UPLOAD_URL = "{{ url_for('upload_issue', repo=repo.name, issueid=issue.id, username=username) }}";
+</script>
+<script type="text/javascript"
+    src="{{ url_for('static', filename='emoji/jquery.textcomplete.min.js') }}">
+</script>
+<script type="text/javascript"
+    src="{{ url_for('static', filename='emoji/emojione.min.js') }}">
+</script>
+<script type="text/javascript"
+  src="{{ url_for('static', filename='upload.js') }}">
+</script>
+
+<script type="text/javascript" src="{{ url_for('static', filename='selectize.min.js') }}"></script>
+<script type="text/javascript" src="{{ url_for('static', filename='atwho/jquery.caret.min.js') }}"></script>
+<script type="text/javascript" src="{{ url_for('static', filename='atwho/jquery.atwho.min.js') }}"></script>
+
+<script type="text/javascript">
+
+{% if authenticated and form %}
+$(document).ready(function() {
+  // Set up the drag/drop zone.
+  initDropbox("{{ form.csrf_token.current_token }}", "#comment");
+
+  // Set up the handler for the file input box.
+  $("#file-picker").on("change", function() {
+    doUpload("{{ form.csrf_token.current_token }}", this.files);
+  });
+  $.get("{{ url_for('api_ns.api_users') }}", {
+    pattern: '*'
+  }).done(function(resp) {
+    var userConfig = {
+      at: '@',
+      data: resp['mention'],
+      insertTpl: '@${username}',
+      displayTpl: "<li><img src=\"${image}\"> ${username} <small>${name}</small></li>",
+      searchKey: "username"
+    }
+    $("#comment").atwho(userConfig);
+  });
+   $.when($.get("{{ url_for('api_ns.api_view_issues', repo=repo.name, username=username, status='all') }}"),
+          $.get("{{ url_for('api_ns.api_pull_request_views', repo=repo.name, username=username, status='all') }}")
+   ).done(function(issuesResp, prResp) {
+     // 0 is the api response
+     var issuesAndPrs = issuesResp[0]['issues'].concat(prResp[0]['requests']);
+     var data = $.map(issuesAndPrs, function(ticket, idx) {
+       return {
+         name: ticket.id.toString(),
+         title: $('<div>').text(ticket.title).html()
+       }
+     });
+     var issueAndPrConfig = {
+       at: '#',
+       data: data,
+       insertTpl: '#${name}',
+       displayTpl: "<li>#${name}<small> ${title}</small></li>",
+     }
+     $("#comment").atwho(issueAndPrConfig);
+   })
+ });
+{% endif %}
+function setup_edit_btns() {
+  $(".edit_btn").unbind();
+  $(".edit_btn").click(function() {
+    var commentid = $( this ).attr('data-comment');
+    var _url = '{{ request.base_url }}' + '/comment/' + commentid + '/edit';
+    $.ajax({
+        url: _url + '?js=1',
+        type: 'GET',
+        dataType: 'html',
+        success: function(res) {
+            var el = $('#comment-' + commentid);
+            var sec = el.parent().find('.issue_comment');
+            $(sec).hide();
+            el.parent().find('.issue_actions').hide();
+            $(sec).after(res);
+            cancel_edit_btn();
+        },
+        error: function() {
+            alert('Could not make edit work');
+        }
+    });
+    return false;
+  });
+};
+
+function cancel_edit_btn() {
+  $("#comment_update_cancel").unbind();
+  $("#comment_update_cancel").click(
+    function() {
+      $(this).closest('#comments').find('.issue_comment').show();
+      $(this).closest('#comments').find('.issue_actions').show();
+      $(this).closest('.edit_comment').remove();
+      return false;
+    });
+};
+
+function setup_reply_btns() {
+  $(".reply").unbind();
+  $( ".reply" ).click(
+    function() {
+      if ($(this).attr('data-toggle')){
+        var _section = $(this).closest('.card-block');
+      } else {
+        var _section = $(this).closest('.clearfix');
+      }
+      var _comment = _section.find('.comment_body');
+      var _text = _comment.text().split("\n");
+      var _output = new Array();
+      for (cnt = 0; cnt < _text.length ; cnt ++) {
+          _output[cnt] = '> ' + $.trim(_text[cnt]);
+      }
+      $( "#comment" ).val(_output.join("\n"));
+    }
+  );
+};
+
+$(document).ready(function() {
+  var cur_hash = null;
+
+  highlight_comment = function() {
+    var _hash = window.location.hash;
+    if (_hash != cur_hash) {
+      $( cur_hash ).css(
+        "background", "linear-gradient(to bottom, #ededed 0%, #fff 100%)"
+      );
+    };
+    cur_hash = _hash;
+    if ( _hash ) {
+      $( _hash ).css(
+        "background", "linear-gradient(to bottom, #eded98 0%, #fff 100%)"
+      );
+    };
+    return false;
+  };
+
+  {% if repo_admin %}
+  $('#closeticket').click(function(event){
+    event.preventDefault();
+    var closeForm = $('<form>', {
+        'method': 'POST',
+        'action': '{{
+        url_for('.delete_issue',
+                 username=username, repo=repo.name, issueid=issueid) }}',
+    }).append($('<input>', {
+        'name': 'csrf_token',
+        'value': '{{ form.csrf_token.current_token }}',
+        'type': 'hidden'
+    })).appendTo('body');
+    if (confirm('Are you sure to delete this ticket? \nThis is final and cannot be un-done.')){
+      closeForm.submit();
+    }
+    return false;
+  });
+  {% endif %}
+
+  $(window.onload=highlight_comment());
+  $(window).on('hashchange', highlight_comment);
+  cancel_edit_btn();
+  setup_edit_btns();
+  setup_reply_btns();
+
+});
+</script>
+
+{% if config['EVENTSOURCE_SOURCE'] and not issue.private %}
+<script type="text/javascript"
+  src="{{ url_for('static', filename='issue_ev.js') }}"></script>
+
+<script type="text/javascript">
+var source = null;
+var sse = true;
+if (!!window.EventSource) {
+  source = new EventSource('{{ config["EVENTSOURCE_SOURCE"]
+    + request.script_root + request.path }}');
+  source.addEventListener('error', function(e) {
+    sse = false;
+  }, false);
+}
+
+window.onbeforeunload = function() {
+    source.close()
+};
+
+source.addEventListener('message', function(e) {
+  console.log(e.data);
+  var data = $.parseJSON(e.data);
+  var _issues_url ='<a href="{{
+    url_for('view_issues', username=username, repo=repo.name)}}';
+  var _api_issues_url ='{{
+    url_for('api_ns.api_view_issue', username=username,
+            repo=repo.name, issueid='-123456789')}}';
+  var _issue_url ='{{
+    url_for('view_issue', username=username,
+            repo=repo.name, issueid='-123456789')}}';
+  process_event(data, "{{ issue.uid }}", _issue_url,
+                _issues_url, _api_issues_url,
+                "{{ g.fas_user.username }}");
+  setup_edit_btns();
+  setup_reply_btns();
+
+  }, false);
+
+{% if authenticated and form %}
+function try_async_comment(form) {
+  console.log(form)
+  $(form).find('input[type="submit"]').attr("disabled", "disabled");
+  var _data = $(form).serialize();
+  var btn = $(document.activeElement);
+  if (btn[0].name == 'drop_comment'){
+    _data += '&drop_comment=' + btn[0].value;
+    return true;
+  }
+  if (!sse) {
+    $(form).off('submit');
+    form.submit();
+    return false;
+  }
+  var _url = form.action + "?js=1";
+  $.post( _url, _data )
+    .done(function(data) {
+      if(data == 'ok') {
+        {# The event-source server will automatically refresh the UI #}
+        $('#comment').val('');
+        $('#preview').html('');
+        $('#previewinmarkdown').addClass('inactive');
+        $('#previewinmarkdown').removeClass('active');
+        $('#preview').hide();
+        $('#comment').show();
+        $('#comments').find('.comment_body').show();
+        $('#comments').find('.edit_comment').remove();
+        $( ".issue-metadata-form" ).hide();
+        $( ".issue-metadata-display" ).show();
+      } else {
+        // Make the browser submit the form sync
+        $(form).off('submit');
+        form.submit();
+      }
+    })
+    .fail(function() {
+      // Make the browser submit the form sync
+      $(form).off('submit');
+      form.submit();
+    })
+  $(form).find('input[type="submit"]').removeAttr("disabled");
+  return false;
+};
+{% endif %}
+
+</script>
+{% endif %}
+<script type="text/javascript">
+$( document ).ready(function() {
+
+
+  var emojiStrategy;
+  $.getJSON(
+    '{{ url_for("static", filename="emoji/emoji_strategy.json") }}',
+    function( data ) {
+      emojiStrategy =  data;
+    }
+  );
+
+  var folder = '{{url_for("static", filename="emoji/png/") }}';
+  var json_url = '{{ url_for("static", filename="emoji/emoji_strategy.json") }}';
+  emoji_complete(json_url, folder);
+
+  $(".comment_body").each(function(ind, obj) {
+    var source = $(obj).html();
+    var preview = emojione.toImage(source);
+    $(obj).html(preview);
+  });
+
+  $( ".editmetadatatoggle" ).click(
+    function() {
+      $( ".issue-metadata-form" ).toggle();
+      $( ".issue-metadata-display" ).toggle();
+    }
+  );
+
+  $('#assignee').selectize({
+      valueField: 'user',
+      labelField: 'user',
+      searchField: 'user',
+      maxItems: 1,
+      create: false,
+      load: function(query, callback) {
+        if (!query.length) return callback();
+        $.getJSON(
+          "{{ url_for('api_ns.api_users') }}", {
+            pattern: query.term
+          },
+          function( data ) {
+            callback( data.users.map(function(x) { return { user: x }; }) );
+          }
+        );
+      }
+  });
+
+  $('#blocks').selectize({
+    plugins: ['remove_button'],
+    valueField: 'id',
+    labelField: 'id',
+    searchField: ['id', 'title'],
+    preload: 'focus',
+    render: {
+      option: function(item, escape) {
+        return '<div><span>'+escape(item.id)+'</span> <span>'+escape(item.title)+'</span></div>';
+      },
+      item: function(item, escape) {
+        return '<div><span>#'+escape(item.id)+'</span></div>';
+      },
+    },
+    create: false,
+    load: function(query, callback) {
+      $.getJSON(
+        "{{ url_for('api_ns.api_view_issues', username=username, repo=repo.name) }}",
+        function( data ) {
+          //console.log(data.issues);
+          callback(data.issues);
+        }
+      );
+    }
+  });
+
+  $('#depends').selectize({
+    plugins: ['remove_button'],
+    valueField: 'id',
+    labelField: 'id',
+    searchField: ['id', 'title'],
+    preload: 'focus',
+    render: {
+      option: function(item, escape) {
+        return '<div><span>'+escape(item.id)+'</span> <span>'+escape(item.title)+'</span></div>';
+      },
+      item: function(item, escape) {
+        return '<div><span>#'+escape(item.id)+'</span></div>';
+      },
+    },
+    create: false,
+    load: function(query, callback) {
+      $.getJSON(
+        "{{ url_for('api_ns.api_view_issues', username=username, repo=repo.name) }}",
+        function( data ) {
+          //console.log(data.issues);
+          callback(data.issues);
+        }
+      );
+    }
+  });
+
+  $( "#clear_comment").click(
+    function() {
+      $( "#comment" ).val("");
+    }
+  );
+
+  var available_tags = [];
+  {%for tog in tag_list %}
+    available_tags.push("{{tog.tag}}");
+  {%endfor%}
+  var items = available_tags.map(function(x) { return { item: x }; });
+
+  $('#tag').selectize({
+    delimiter: ',',
+    options: items,
+    persist: false,
+    create: true,
+    labelField: "item",
+    valueField: "item",
+  });
+
+  $( "#preview" ).hide();
+  $( "#previewinmarkdown" ).click(
+    function(event, ui) {
+      if ($( "#previewinmarkdown" ).hasClass("inactive")){
+        var _text = $( "#comment" ).val();
+        var _url = "{{ url_for('markdown_preview',
+                        user=repo.user.user if repo.is_fork,
+                        repo=repo.name) | safe}}";
+        $.ajax({
+          url: _url ,
+          type: 'POST',
+          data: {
+            content: _text,
+            csrf_token: "{{ form.csrf_token.current_token }}",
+          },
+          dataType: 'html',
+          success: function(res) {
+            var preview = emojione.toImage(res)
+            $( "#preview" ).html(preview);
+            $( "#previewinmarkdown" ).removeClass("inactive");
+            $( "#previewinmarkdown" ).addClass("active");
+            $( "#comment" ).hide();
+            $( "#preview" ).show();
+          },
+          error: function() {
+            alert('Unable to generate preview!');
+          }
+        });
+        return false;
+      } else if ($( "#previewinmarkdown" ).hasClass("active")){
+        $( "#previewinmarkdown" ).addClass("inactive");
+        $( "#previewinmarkdown" ).removeClass("active");
+        $( "#comment" ).show();
+        $( "#preview" ).hide();
+      }
+    }
+  );
+
+  {% if authenticated and repo_admin %}
+    $("#take-btn").click(function(){
+      var _url = "{{ url_for(
+        'api_ns.api_assign_issue', repo=repo.name, username=username, issueid=issueid
+        ) }}";
+      var _data = {assignee: "{{ g.fas_user.username }}"};
+      $.post( _url, _data ).done(
+        function(data) {
+          var _user_url = '\n<a href="{{ url_for("view_issues", repo=repo.name, username=username) }}'
+            + '?assignee={{ g.fas_user.username }}">'
+            + '{{ g.fas_user.username }}</a>';
+          $('#assignee_plain').html(_user_url);
+          $('#assignee').val("{{ g.fas_user.username }}");
+        }
+      )
+      return false;
+    });
+  {% endif %}
+
+});
+</script>
+{% endblock %}

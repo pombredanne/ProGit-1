@@ -1,0 +1,671 @@
+{% extends "repo_master.html" %}
+{% from "_formhelper.html" import render_field_in_row %}
+
+{% block title %}{{ select.capitalize() }} - {{ repo.name }}{% endblock %}
+{% set tag = "home" %}
+
+{% block repo %}
+
+<section class="settings">
+  <h3>Settings for {{repo.name}}</h3>
+  <div class="row">
+    <div class="col-md-8 col-md-offset-2">
+      <div class="card">
+        <div class="card-header">
+          Project Details
+        </div>
+        <div class="card-block">
+          <form action="{{ url_for('.update_project',
+                          username=username, repo=repo.name) }}" method="post">
+            <fieldset class="form-group">
+              <label for="description">Description</label>
+              <input class="form-control" name="description" value="{{
+                repo.description if repo.description }}" required/>
+              <small class="text-muted">Short description of the project</small>
+            </fieldset>
+            <fieldset class="form-group">
+                <label for="url">Project's url</label>
+                <input class="form-control" name="url" value="{{ repo.url if repo.url else '' }}" />
+                <small class="text-muted">Website URL of the project</small>
+            </fieldset>
+            <fieldset class="form-group">
+              <label for="avatar">Avatar email</label>
+              <input class="form-control" name="avatar_email" value="{{ repo.avatar_email if repo.avatar_email else '' }}" />
+              <small class="text-muted">Email address linked to avatar to display for the project</small>
+            </fieldset>
+            <fieldset class="form-group">
+              <label for="tags">Project tags</label>
+              <input class="form-control" name="tags" value="{{ repo.tags_text |join(', ') if repo.tags else '' }}" />
+              <small class="text-muted">tags for project</small>
+            </fieldset>
+            <button class="btn btn-primary" type="submit" title="Update description">
+              Update
+            </button>
+            {{ form.csrf_token }}
+          </form>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-8 col-md-offset-2">
+      <div class="card">
+        <div class="card-header">
+          Default Branch
+        </div>
+        <div class="card-block">
+          <form action="{{ url_for('change_ref_head',
+                 username=username, repo=repo.name) }}" method="post">
+            {{ branches_form.csrf_token }}
+            {{ branches_form.branches(class_="c-select") }}
+            <input class="btn btn-primary" type="submit" value="Make Default"/>
+          </form>
+        </div>
+      </div>
+    </div>
+    {% if config.get('WEBHOOK', False) %}
+    <div class="col-md-8 col-md-offset-2">
+      <div class="card">
+        <div class="card-header">
+          <strong>Private web-hook key</strong>
+        </div>
+        <div class="card-block">
+          <p>
+            Each message sent to the web-hook are signed via hmac and SHA1 using
+            this private key.
+          </p>
+          <p>
+            This key is private to your project, make sure to store in a safe place
+            and do not share it.
+          </p>
+          <div class="form-group">
+            <div class="input-group">
+              <div class="input-group-addon"><span class="oi" data-glyph="key"></span></div>
+              <input class="form-control" type="text" value="{{ repo.hook_token }}" readonly>
+            </div>
+          </div>
+
+          <form action="{{ url_for('.new_repo_hook_token',
+                        username=username, repo=repo.name) }}"
+              method="post" class="icon">
+          <button class="btn btn-primary" type="submit"
+            onclick="return confirm('Are you sure to generate a new token for '
+              + 'this project/fork? \nThis will break all web hook in place and '
+              + 'cannot be un-done.');"
+            title="Generate a new hook token">
+            <span class="oi" data-glyph="reload"></span> &nbsp;Re-generate
+          </button>
+          {{ form.csrf_token }}
+        </form>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="col-md-8 col-md-offset-2">
+      <div class="card">
+        <div class="card-header">
+          <strong>API Keys</strong>
+        </div>
+        <div class="card-block">
+          <p>
+            API keys are tokens used to authenticate you on pagure. They can also
+            be used to grant access to 3rd party application to behave on this
+            project on your name.
+          </p>
+          <p>
+            These are your personal tokens; they are not visible to other owners
+            of this repository.
+          </p>
+          <p>
+            These keys are valid for <span class="strong">60</span> days.
+          </p>
+          <p>
+            These keys are private to your project, make sure to store in a safe
+            place and do not share it.
+          </p>
+        </div>
+        {% if repo.tokens %}
+        <ul class="list-group list-group-flush">
+        {% for token in repo.tokens %}
+          {% if token.user.username == g.fas_user.username %}
+            <li class="list-group-item">
+              <div class="form-group">
+                <div class="input-group">
+                  <div class="input-group-addon"><span class="oi" data-glyph="key"></span></div>
+                  <input class="form-control" type="text" value="{{ token.id }}" readonly>
+                </div>
+              </div>
+            {% if token.expired %}
+              <span class="text-danger"><strong>Expired</strong> since {{ token.expiration.date() }}</span>
+            {% else %}
+              <span class="text-success"><strong>Valid</strong> until: {{ token.expiration.date() }}</span>
+              <form class="pull-xs-right" action="{{ url_for('.revoke_api_token',
+                    username=username, repo=repo.name, token_id=token.id) }}"
+                method="post" class="icon">
+                <button class="btn btn-danger" type="submit"
+                    onclick="return confirm('Are you sure to revoke this token ?'
+                        + '\nThis will break all application using it and '
+                        + 'cannot be un-done.');"
+                    title="Revoke token">
+                  <span class="oi" data-glyph="trash"></span> &nbsp;Revoke
+                </button>
+                {{ form.csrf_token }}
+              </form>
+            {% endif %}
+              <button type="button" class="btn btn-link"
+                data-toggle="modal" data-target="#acls{{ token.id }}">
+                ACLs
+              </button>
+              <div class="modal fade" id="acls{{ token.id }}" tabindex="-1"
+                    role="dialog" aria-labelledby="ACLs" aria-hidden="true">
+                <div class="modal-dialog" role="document">
+                  <div class="modal-content">
+                    <div class="modal-header">
+                      <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                        <span class="sr-only">Close</span>
+                      </button>
+                      <h4 class="modal-title" id="myModalLabel">ACLs</h4>
+                    </div>
+                    <div class="modal-body">
+                      {{ token.acls_list |safe }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </li>
+          {% endif %}
+        {% endfor %}
+        </ul>
+        {% endif %}
+        <div class="card-block">
+          <a href="{{ url_for('.add_token', username=username, repo=repo.name) }}"
+              method="post" class="icon">
+          <button class="btn btn-primary" type="submit"
+            title="Generate a new API token">
+            Create new key
+          </button>
+          </a>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="col-md-8 col-md-offset-2">
+      <div class="card">
+        <div class="card-header">
+          Project options
+        </div>
+        <div class="card-block">
+          <form action="{{ url_for('.view_settings',
+                          username=username, repo=repo.name) }}" method="post">
+            {% for key in repo.settings | sort %}
+            {% if not config.get('ENABLE_TICKETS', True) and key in ['issue_tracker'] %}
+            {% elif not config.get('DOC_APP_URL') and key in ['project_documentation'] %}
+            {% elif not config.get('WEBHOOK') and key in ['Web-hooks'] %}
+            {% else %}
+              {% if repo.settings[key] in [True, False, 'y'] %}
+                <div>
+                  <label class="c-input c-checkbox">
+                    <input id="{{ key }}" type="checkbox" value="y" name="{{ key }}" {%
+                            if repo.settings[key] -%}checked=""{%- endif -%}/>
+                    <span class="c-indicator"></span>
+                    Activate {{ key | replace('_', ' ') }}
+                  </label>
+                </div>
+              {% else %}
+                <div class="form-inline">
+                  <label for="{{ key }}">Activate {{ key | replace('_', ' ') }} :</label>
+                  <input width="4em" class="form-control" id="{{ key }}" type="text" {% if repo.settings[key]
+                        %}value="{{ repo.settings[key] }}"{% endif %} name="{{ key }}" />
+                </div>
+              {% endif %}
+            {% endif %}
+            {% endfor %}
+          </table>
+          <p class="p-t-2">
+              <input type="submit" class="btn btn-primary" value="Update">
+              {{ form.csrf_token }}
+            </p>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-8 col-md-offset-2">
+      <div class="card">
+        <div class="card-header">
+          Re-generate git repos
+        </div>
+        <div class="card-block">
+          <form action="{{ url_for('.regenerate_git',
+                          username=username, repo=repo.name) }}" method="post"
+                class="icon">
+            <input name="regenerate" value="tickets" type="hidden"/>
+            <button class="btn btn-primary" type="submit"
+              title="Regenerate tickets git repo">
+              <span class="oi" data-glyph="reload"></span> &nbsp;Regenerate the git repo for issues
+            </button>
+            {{ form.csrf_token }}
+          </form>
+          <form class="m-t-2" action="{{ url_for('.regenerate_git',
+                          username=username, repo=repo.name) }}" method="post"
+                class="icon">
+            <input name="regenerate" value="requests" type="hidden"/>
+            <button class="btn btn-primary" type="submit"
+              title="Regenerate requests git repo">
+              <span class="oi" data-glyph="reload"></span> &nbsp;Regenerate the git repo for requests
+            </button>
+            {{ form.csrf_token }}
+          </form>
+        </div>
+      </div>
+    </div>
+
+    {% if config.get('ENABLE_USER_MNGT', True) %}
+    <div class="col-md-8 col-md-offset-2">
+      <div class="card">
+        <div class="card-header">
+          Users and Groups
+        </div>
+        <div class="card-block">
+
+          <p>Below is the list of user having commit rights to this repo.</p>
+
+          <p>
+            <a href="{{ url_for('.add_user', username=username, repo=repo.name) }}"
+                class="btn btn-primary">
+                add user
+            </a>
+
+            <a href="{{ url_for('.add_group_project', username=username, repo=repo.name) }}"
+                class="btn btn-primary">
+                add group
+            </a>
+          </p>
+        </div>
+          <ul class="list-group list-group-flush">
+            <li class="list-group-item">
+              <a href="{{ url_for('.view_user', username=repo.user.user) }}">
+                <span class="oi" data-glyph="person"></span>
+                &nbsp; {{ repo.user.user }}
+              </a>
+              (owner)
+            </li>
+          {% for user in repo.users %}
+            <li class="list-group-item">
+              <a href="{{ url_for('.view_user', username=user.user) }}">
+                <span class="oi" data-glyph="person"></span>
+                &nbsp; {{ user.user }}
+              </a>
+              <form class="pull-xs-right" method="POST"
+                action="{{ url_for('.remove_user', username=username, repo=repo.name, userid=user.id) }}">
+                <button
+                  onclick="return confirm('You sure you want to remove this user from this project?');"
+                  title="Remove user" class="btn btn-danger btn-sm">
+                  <span class="oi" data-glyph="trash"></span>
+                </button>
+                {{ form.csrf_token }}
+              </form>
+            </li>
+          {% endfor %}
+          {% for group in repo.groups %}
+            <li class="list-group-item">
+              <a href="{{ url_for('.view_group', group=group.group_name) }}">
+                <span class="oi" data-glyph="people"></span>
+                &nbsp; {{ group.group_name }}
+              </a>
+              <form class="pull-xs-right" method="POST"
+                action="{{ url_for('.remove_group_project', username=username, repo=repo.name, groupid=group.id) }}">
+                <button
+                  onclick="return confirm('You sure you want to remove this group from this project?');"
+                  title="Remove group" class="btn btn-danger btn-sm pull-xs-right">
+                  <span class="oi" data-glyph="trash"></span>
+                </button>
+                {{ form.csrf_token }}
+              </form>
+            </li>
+          {% endfor %}
+          </ul>
+      </div>
+    </div>
+    {% endif %}
+
+
+    {% if plugins %}
+    <div class="col-md-8 col-md-offset-2">
+      <div class="card">
+        <div class="card-header">
+          Hooks
+        </div>
+        <div class="card-block">
+          <div id="accordions" role="tablist" aria-multiselectable="true">
+            {% set idcount = 1 %}
+            {% for plugin in plugins %}
+            <div class="panel panel-default" >
+              <div class="panel-heading" role="tab" id="pluginheading{{idcount}}">
+                <h4 class="panel-title">
+                  <a data-toggle="collapse" data-parent="#accordions"
+                      href="#plugincollapse{{idcount}}" aria-expanded="true"
+                      aria-controls="plugincollapse{{idcount}}">
+                    <span id="dropdowncaret" class="oi" data-glyph="caret-right"></span>&nbsp;{{ plugin }}
+                  </a>
+                </h4>
+              </div>
+              <div id="plugincollapse{{ idcount }}" data-plugin="{{ plugin }}"
+                  class="panel-collapse collapse" role="tabpanel"
+                  aria-labelledby="pluginheading{{ idcount }}">
+                <span class="oi oi-spin pull-left" data-glyph="loop-circular"></span>
+              </div>
+            </div>
+            {% set idcount = idcount+1 %}
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+
+    {% if config.get('ENABLE_TICKETS', True)
+        and repo.settings.get('issue_tracker', True) %}
+    <div class="col-md-8 col-md-offset-2">
+      <div class="card">
+        <div class="card-header">
+          <strong>Priorities</strong>
+        </div>
+        <div class="card-block">
+          <p>
+            Below are the priorities you may assign to a ticket, allowing you
+            to sort them with it. The Weight determines the ordering. Higher
+            priority should correspond to higher weight.
+            <span class="italic">
+              To remove an entry, simply clean the Weight and Title
+            </span>
+          </p>
+        </div>
+        <form action="{{ url_for('.update_priorities',
+                          username=username, repo=repo.name) }}"
+            method="post" class="icon">
+          {{ tag_form.csrf_token }}
+          <div class="card-block">
+            <div class="row">
+              <div class="col-sm-2">
+                <strong>Weight</strong>
+              </div>
+              <div class="col-sm-10">
+                <strong>Title</strong>
+              </div>
+            </div>
+            <div id="priorities">
+          {% for priority in repo.priorities | sort %}
+              <div class="row p-t-1">
+                <div class="col-sm-2 p-r-0">
+                  <input type="text" name="priority_weigth"
+                    value="{{ priority }}" size="3" class="form-control"/>
+                </div>
+                <div class="col-sm-9 p-r-0">
+                  <input type="text" name="priority_title"
+                    value="{{ repo.priorities[priority] }}" class="form-control"/>
+                </div>
+              </div>
+          {% endfor %}
+          </div>
+          <div class="row p-t-1">
+            <div class="col-sm-6">
+              <a class="btn btn-secondary btn-sm btn-block" id="new_priority">
+                  Add new priority
+              </a>
+            </div>
+            {% if not repo.priorities %}
+            <div class="col-sm-6">
+              <a class="btn btn-secondary btn-sm btn-block" id="default_priorities">
+                  Default priority set
+              </a>
+            </div>
+            {% endif %}
+          </div>
+          <div class="row p-t-1">
+            <div class="col-sm-12">
+              <button class="btn btn-primary" type="submit"
+                  title="Update the priorities">
+                Update
+              </button>
+            </div>
+          </div>
+        </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="col-md-8 col-md-offset-2">
+      <div class="card">
+        <div class="card-header">
+          <strong>Roadmap</strong>
+        </div>
+        <div class="card-block">
+          <p>
+            Below are the milestones you may assign to a ticket, allowing
+            you to build a roadmap using the `roadmap` tag and a tag
+            corresponding to one of the milestones defined here.
+          </p>
+        </div>
+        <form action="{{ url_for('.update_milestones',
+                          username=username, repo=repo.name) }}"
+            method="post" class="icon">
+          {{ tag_form.csrf_token }}
+          <div class="card-block">
+            <div class="row">
+              <div class="col-sm-6">
+                <strong>Milestone</strong>
+              </div>
+              <div class="col-sm-6">
+                <strong>Date (optional)</strong>
+              </div>
+            </div>
+            <div id="milestones">
+          {% for milestone in repo.milestones | sort %}
+              <div class="row p-t-1">
+                <div class="col-sm-6 p-r-0">
+                  <input type="text" name="milestones"
+                    value="{{ milestone }}" size="3" class="form-control"/>
+                </div>
+                <div class="col-sm-6 p-r-0">
+                  <input type="text" name="milestone_dates"
+                    value="{{ repo.milestones[milestone] }}" class="form-control"/>
+                </div>
+              </div>
+          {% endfor %}
+          </div>
+          <div class="row p-t-1">
+            <div class="col-sm-6">
+              <a class="btn btn-secondary btn-sm btn-block" id="new_milestone">
+                  Add new milestone
+              </a>
+            </div>
+          </div>
+          <div class="row p-t-1">
+            <div class="col-sm-12">
+              <button class="btn btn-primary" type="submit"
+                  title="Update the milestones">
+                Update
+              </button>
+            </div>
+          </div>
+        </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="col-md-8 col-md-offset-2">
+      <div class="card">
+        <div class="card-header">
+          <strong>Issue Tags</strong>
+        </div>
+        <div class="card-block">
+          <p>
+            Here below is the list of tags associated with one or more issue of
+            the project.
+          </p>
+        </div>
+        <ul class="list-group list-group-flush">
+        {% for tag in tags %}
+          <li class="list-group-item clearfix">
+            <a href="{{ url_for('view_issues', username=username,
+              repo=repo.name, tags=tag.tag) }}">
+              <span class="oi" data-glyph="tag"></span>&nbsp; {{ tag.tag }}
+            </a>
+            <div class="pull-xs-right">
+            <form class="icon del_icon pull-xs-right" method="POST"
+              action="{{ url_for('remove_tag', username=username, repo=repo.name) }}">
+              <input type="hidden" value="{{ tag.tag }}" name="tag" />
+              {{ tag_form.csrf_token }}
+              <button
+                onclick="return confirm('Do you really want to remove the tag: {{ tag.tag }}?');"
+                title="Remove tag" class="btn btn-danger btn-sm">
+                <span class="oi" data-glyph="trash"></span>
+              </button>
+            </form>
+            <a href="{{ url_for(
+                  '.edit_tag',username=username, repo=repo.name, tag=tag.tag) }}">
+              <button class="btn btn-default btn-sm" title="Edit tag">
+                <span class="oi" data-glyph="pencil"></span>
+              </button>
+            </a>
+            </div>
+          </li>
+        {% endfor %}
+        </ul>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if config.get('ENABLE_DEL_PROJECTS', True) %}
+    <div class="col-md-8 col-md-offset-2">
+      <div class="card">
+        <div class="card-header">
+          Delete Project
+        </div>
+        <div class="card-block">
+        <form action="{{ url_for('.delete_repo',
+                        username=username, repo=repo.name) }}"
+              method="post" class="icon">
+          <button class="btn btn-danger" type="submit"
+            onclick="return confirm('Are you sure to delete {{repo.name}}? \nThis is final and cannot be un-done.');"
+            title="Delete the project/fork">
+              <span class="oi" data-glyph="trash"></span>&nbsp; Delete the {{repo.name}} project
+          </button>
+        </form>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</section>
+
+{% endblock %}
+
+{% block jscripts %}
+{{ super() }}
+<script>
+function show_acls(acls) {
+  var _txt = '<div title="ACLs details" id="show_meeting">'
+    + '<ul>';
+
+  for (i = 0; i < acls.length; i++) {
+      _txt += '<li>' + acls[i] + '</li>';
+  }
+
+  _txt += '</ul>' + '</div>';
+  var _elt = $(_txt);
+  var _height = $(window).height() * 0.8;
+  _elt.dialog({
+      height: 250,
+      width: 250,
+      modal: true,
+      cache: false,
+  });
+}
+
+$('#accordions').on('shown.bs.collapse', function (e) {
+  var _plugin = $(e.target).attr('data-plugin');
+  $(e.target).siblings().find("#dropdowncaret").attr('data-glyph', "caret-bottom");
+  if (!_plugin) {
+    return false;
+  }
+  var _url = "{{ url_for('.view_plugin', repo=repo.name, username=username, plugin='') }}";
+  _url += _plugin + '/0';
+  console.log(_url);
+  $.ajax({
+      url: _url ,
+      type: 'GET',
+      dataType: 'html',
+      success: function(res) {
+          $("#"+e.target.id).html(res);
+      },
+  });
+  return false;
+})
+
+$('#accordions').on('hide.bs.collapse', function (e) {
+  $(e.target).siblings().find("#dropdowncaret").attr('data-glyph', "caret-right");
+})
+
+$('#new_priority').click(function(e) {
+  console.log('new priority');
+  console.log($('#priorities'));
+  $('#priorities').append(
+    '<div class="row p-t-1"> \
+        <div class="col-sm-2 p-r-0">\
+          <input type="text" name="priority_weigth"\
+            value="" size="3" class="form-control"/>\
+        </div>\
+        <div class="col-sm-9 p-r-0">\
+          <input type="text" name="priority_title"\
+            value="" class="form-control"/>\
+        </div>\
+    </div>'
+  );
+});
+
+{% if not repo.priorities %}
+$('#default_priorities').click(function(e) {
+  $('#priorities').html('');
+  var def_priorities = ['', 'High', 'Normal', 'Low'];
+  for (var cnt = 1; cnt < def_priorities.length; cnt++) {
+    $('#priorities').append(
+      '<div class="row p-t-1"> \
+          <div class="col-sm-2 p-r-0">\
+            <input type="text" name="priority_weigth"\
+              value="' + cnt + '" size="3" class="form-control"/>\
+          </div>\
+          <div class="col-sm-9 p-r-0">\
+            <input type="text" name="priority_title"\
+              value="' + def_priorities[cnt] + '" class="form-control"/>\
+          </div>\
+      </div>'
+    );
+  }
+  console.log($('#priorities'));
+});
+{% endif %}
+
+$('#new_milestone').click(function(e) {
+  console.log('new milestone');
+  console.log($('#milestones'));
+  $('#milestones').append(
+    '<div class="row p-t-1"> \
+        <div class="col-sm-6 p-r-0">\
+          <input type="text" name="milestones"\
+            value="" size="3" class="form-control"/>\
+        </div>\
+        <div class="col-sm-6 p-r-0">\
+          <input type="text" name="milestone_dates"\
+            value="" class="form-control"/>\
+        </div>\
+    </div>'
+  );
+});
+
+</script>
+{% endblock %}

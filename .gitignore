@@ -1,9 +1,31 @@
+# Default folder where the git repos are located
 repos/
 forks/
 tickets/
 docs/
+requests/
+releases/
+remotes/
+
+# Other python/editor specific files to ignore
 dist/
 build/
 *.pyc
+*.pyo
 *.swp
 *.egg-info
+*.conf
+.coverage
+
+_build/
+
+# Just a local folder I use for testing
+clones/
+
+# IdeaIDE
+.idea/
+# Ignore the git repos in unit tests
+tests/*.git
+
+# Don't track alembic.ini
+alembic.ini

@@ -1,0 +1,234 @@
+{% extends "repo_master.html" %}
+
+{% block title %}Pull requests - {{ repo.name }}{% endblock %}
+{% set tag = "home" %}
+
+
+{% block repo %}
+
+<div>
+  <h2 class="p-b-1">
+    {% if status|lower != 'open' and status|lower != 'false' %}
+    {{ status }} {% elif status|lower != 'open' -%}
+    Closed/Merged {% endif -%}
+    Pull Requests <span class="label label-default">{{ requests|count }}</span>
+    {% if authenticated and repo.settings.get('pull_requests', True) %}
+        <span id="request_pull" class="inline_it">
+
+        </span>
+
+    <div class="dropdown pull-xs-right" id="PR-dropdown">
+      <button class="btn btn-primary btn-sm dropdown-toggle"
+        type="button" id="dropdownMenu1" data-toggle="dropdown"
+        aria-haspopup="true" aria-expanded="false">
+        File Pull Request
+      </button>
+      <div class="dropdown-menu dropdown-menu-right" aria-labelledby="dropdownMenu1">
+        <a class="dropdown-item" href="{{ url_for('new_remote_request_pull',
+        username=username, repo=repo.name) }}">
+          <small>Remote pull-request</small>
+        </a>
+      </div>
+    </div>
+    {%endif%}
+  </h2>
+
+<div>
+  <span class="btn-group btn-group-sm issues-tagbar" role="group" aria-label="Basic example">
+      <a class="btn {%
+            if status|lower in ['open', 'true'] %}btn-primary{%
+            else %}btn-secondary{%
+            endif %} btn-sm" href="{{ url_for('request_pulls', username=username,
+                 repo=repo.name) }}">Open</a>
+      <a class="btn {%
+        if status|lower in ['open', 'true'] %}btn-secondary{%
+        else %}btn-primary{%
+        endif %} btn-sm" href="{{ url_for('request_pulls', username=username,
+               repo=repo.name) }}?status=0">Closed</a>
+  </span>
+  <a class="btn btn-secondary btn-sm pull-xs-right" href="{{ url_for('request_pulls',
+  username=username, repo=repo.name) }}">Reset Filters</a>
+</div>
+</div>
+<div class="card m-t-1">
+<table id="pagure-issues-list" class="table table-hover table-striped m-b-0">
+    <thead class="thead-default">
+        <tr>
+            <th class="stretch-table-column">Pull Request</th>
+            <th class="open_date nowrap">Opened</th>
+            {% if status|lower != 'open' %}
+            <th class="close_date nowrap">Closed</th>
+            {% endif %}
+            <th class="open_by">
+              Reporter(<a href="{{ url_for('request_pulls', username=username,
+                repo=repo.name, assignee=assignee, status=status) }}">reset</a>)
+            </th>
+            {% if status|lower == 'open' %}
+            <th class="assigned">
+              Assignee(<a href="{{ url_for('request_pulls', username=username,
+                repo=repo.name, author=author, status=status) }}">reset</a>)
+            </th>
+            {% endif %}
+        </tr>
+    </thead>
+    <tfoot>
+    </tfoot>
+    <tbody>
+    {% for request in requests %}
+        <tr>
+            <td>
+              <a href="{{ url_for('request_pull', username=username,
+                  repo=repo.name, requestid=request.id) }}">
+                <span class="label label-default">PR#{{ request.id }}</span>
+                {% if status|lower not in ['open', 'true'] %}<span class="label {%
+                    if request.status|lower == 'merged' %}label-success{%
+                    elif request.status|lower == 'closed'%}label-danger{%
+                    endif %}">{{request.status}}</span>{%
+                  endif %} {{ request.title | noJS("img") | safe }}
+              </a>
+              {% if request.user_comments|count > 0 %}
+               &nbsp;&nbsp;
+              <span class="text-muted">
+                <span class="oi" data-glyph="comment-square"
+                    title="Comments on the Pull Request"></span>
+                  {{ request.user_comments|count }}
+              </span>
+              {% endif %}
+            </td>
+            <td class="nowrap">
+              <span title="{{request.date_created.strftime('%Y-%m-%d %H:%M:%S')}}">{{
+                request.date_created | humanize}}</span>
+            </td>
+            {% if status|lower not in ['open', 'true'] %}
+            <td class="nowrap">
+              <span title="{{
+                request.closed_at.strftime('%Y-%m-%d %H:%M:%S')
+                if request.closed_at
+              }}">{{
+                request.closed_at | humanize
+                if request.closed_at }}</span>
+            </td>
+            {% endif %}
+            <td class="nowrap">
+              <a href="{{ url_for('request_pulls', username=username,
+                  repo=repo.name, author=request.user.user,
+                  assignee=assignee, status=status) }}"
+                  title="Filter requests by reporter">
+                {{ request.user.default_email | avatar(16) | safe }}
+                {{ request.user.user }}
+              </a>
+            </td>
+            {% if status|lower in ['open', 'true'] %}
+            <td class="nowrap">
+              {% if request.assignee %}
+              <a href="{{ url_for('request_pulls', username=username,
+                repo=repo.name, assignee=request.assignee.username,
+                author=author, status=status) }}"
+                title="Filter issues by assignee">
+                {{ request.assignee.default_email | avatar(16) | safe }}
+                {{ request.assignee.user }}
+              </a>
+              {% else %}
+              <a class="text-muted" href="{{ url_for('request_pulls', username=username,
+                repo=repo.name, author=author, status=status) }}">unassigned</a>
+              {% endif %}
+            </td>
+            {% endif %}
+        </tr>
+    {% else %}
+        <tr>
+            <td colspan="5" class="noresult">No Pull Requests found</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endblock %}
+
+
+
+{% block jscripts %}
+{{ super() }}
+{% if authenticated %}
+<script type="text/javascript">
+
+$(function() {
+  $.ajax({
+    url: '{{ url_for("internal_ns.get_pull_request_ready_branch") }}' ,
+    type: 'POST',
+    data: {
+      repo: "{{ repo.name }}",
+      repouser: "{{ g.fas_user.username }}",
+      csrf_token: "{{ form.csrf_token.current_token }}",
+    },
+    dataType: 'json',
+    error: function(res) {
+       console.log(res);
+    },
+    success: function(res) {
+      console.log("done");
+      if (res.code == 'OK'){
+        for (branch in res.message){
+            var url = "{{ url_for(
+            'new_request_pull',
+            repo=repo.name,
+            username=g.fas_user.username,
+            branch_to=head,
+            branch_from='') }}" + branch;
+          html = '<small><a class="dropdown-item" \
+          href="' + url + '">From <span class="pr-toplabel">'
+          + '<span class="oi" data-glyph="fork"> </span>'
+          +'{{ g.fas_user.username }}/{{ repo.name }}</span> '
+          +'<span class="pr-toplabel">'
+          +'<span class="oi" data-glyph="random"> </span>'
+          + branch + '</span></a></small> ';
+          $("#PR-dropdown .dropdown-menu").prepend(html);
+        }
+      }
+    }
+  });
+});
+
+{% if authenticated and repo_admin %}
+$(function() {
+  $.ajax({
+    url: '{{ url_for("internal_ns.get_pull_request_ready_branch") }}' ,
+    type: 'POST',
+    data: {
+      repo: "{{ repo.name }}",
+      repouser: "",
+      csrf_token: "{{ form.csrf_token.current_token }}",
+    },
+    dataType: 'json',
+    error: function(res) {
+       console.log(res);
+    },
+    success: function(res) {
+      console.log("done");
+      if (res.code == 'OK'){
+        for (branch in res.message){
+          var url = "{{ url_for(
+            'new_request_pull',
+            repo=repo.name,
+            username=repo.user.user if repo.is_fork else None,
+            branch_to=head,
+            branch_from='') }}";
+          html = '<small><a class="dropdown-item" href="' + url + branch + '">'
+            + 'From <span class="pr-toplabel">'
+              + '<span class="oi" data-glyph="document"> </span>'
+              + '{{ repo.name }}'
+            + '</span>'
+            + '<span class="pr-toplabel">'
+              + '<span class="oi" data-glyph="random"> </span>'
+              + branch
+            + '</span></a></small> ';
+          $("#PR-dropdown .dropdown-menu").prepend(html);
+        }
+      }
+    }
+  });
+});
+{% endif %}
+</script>
+{% endif %}
+{% endblock %}

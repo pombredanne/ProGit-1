@@ -1,0 +1,36 @@
+{% if authenticated %}
+
+<section class="add_comment">
+
+  <form action="{{ url_for(
+    'pull_request_add_comment', username=username, repo=repo.name,
+    requestid=requestid, commit=commit, tree_id=tree_id, filename=filename,
+    row=row) }}"
+    method="post" onsubmit="return try_async_comment(this, true)">
+
+
+    <div class="tabs ui-widget ui-widget-content ui-corner-all"
+        id="comment_block">
+
+      <div id="edit">
+        <textarea class="form-control" id="comment" name="comment"
+            title="comment" style="width:100%;">
+          {{- form.comment.data if form.comment.data else '' -}}
+        </textarea>
+      </div>
+
+    <div>
+
+  {{ form.csrf_token }}
+    <div>
+      <input type="submit" class="btn btn-primary" value="Comment" />
+      <input type="button" class="btn btn-secondary cancel" value="Cancel"/>
+    </div>
+
+  </form>
+
+</section>
+
+{% else %}
+<p><a href="{{ url_for('auth_login') }}">Login</a> to comment on this ticket.</p>
+{% endif %}

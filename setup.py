@@ -7,9 +7,20 @@ Setup script
 # Required to build on EL6
 __requires__ = ['SQLAlchemy >= 0.8', 'jinja2 >= 2.4']
 import pkg_resources
+import os
+import re
 
 from setuptools import setup
-from progit import __version__
+
+
+pagurefile = os.path.join(os.path.dirname(__file__), 'pagure', '__init__.py')
+
+# Thanks to SQLAlchemy:
+# https://github.com/zzzeek/sqlalchemy/blob/master/setup.py#L104
+with open(pagurefile) as stream:
+    __version__ = re.compile(
+        r".*__version__ = '(.*?)'", re.S
+    ).match(stream.read()).group(1)
 
 
 def get_requirements(requirements_file='requirements.txt'):
@@ -31,7 +42,7 @@ def get_requirements(requirements_file='requirements.txt'):
 
 
 setup(
-    name='progit',
+    name='pagure',
     description='A light-weight git-centered forge based on pygit2..',
     version=__version__,
     author='Pierre-Yves Chibon',
@@ -39,9 +50,9 @@ setup(
     maintainer='Pierre-Yves Chibon',
     maintainer_email='pingou@pingoured.fr',
     license='GPLv2+',
-    download_url='https://fedorahosted.org/releases/p/r/progit/',
-    url='https://fedorahosted.org/progit/',
-    packages=['progit'],
+    download_url='https://fedorahosted.org/releases/p/r/pagure/',
+    url='https://fedorahosted.org/pagure/',
+    packages=['pagure'],
     include_package_data=True,
     install_requires=get_requirements(),
 )

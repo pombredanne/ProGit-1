@@ -1,0 +1,322 @@
+{% extends "repo_master.html" %}
+
+{% block title %}{{ select.capitalize() }} - {{ repo.name }}{% endblock %}
+{% set tag = "home" %}
+
+{% block repo %}
+  <div class="row">
+    {% if repo_obj and repo_obj.is_empty %}
+      <div class="col-md-8">
+        <div class="alert {% if category == 'error' %}alert-warning{% else %}alert-info{%endif%}" role="alert">
+          <p>This repo is brand new!</p>
+            {% if authenticated and repo_admin %}
+              <p>If you already have a git repo:</p>
+              <pre>git remote add origin {{ config.get('GIT_URL_SSH') }}{% if repo.parent %}forks/{% endif %}{{ repo.fullname }}.git
+git push -u origin master</pre>
+
+              <p>If you have not created your git repo yet:</p>
+              <pre>git clone {{ config.get('GIT_URL_SSH') }}{% if repo.parent %}forks/{% endif %}{{ repo.fullname }}.git
+cd {{ repo.name }}
+touch README.rst
+git add README.rst
+git commit -m "Add README file"
+git push -u origin master</pre>
+            {% else %}
+              <p>The Project Creator has not pushed any code yet</p>
+            {% endif %}
+        </div>
+      </div>
+    {% else %}
+        <div class="col-md-8">
+            {% if readme %}
+            <section class="readme">
+              {% if safe %}
+                {{ readme | noJS |safe }}
+              {% else %}
+                {{ readme | noJS }}
+              {% endif %}
+            </section>
+            {% else %}
+            <section class="no-readme">
+              <div class="card">
+                <div class="card-header text-xs-center text-muted p-t-2 p-b-2">
+                  The {{repo.name}} project has not checked in a README file yet
+                </div>
+              </div>
+            </section>
+            {% endif %}
+        </div>
+    {% endif %}
+      <div class="col-md-4">
+        <div class="card">
+          <div class="card-block">
+            <h5><strong>Owners</strong></h5>
+            <div class="m-b-2">
+              <div>
+                <a href="{{ url_for('view_user', username=repo.user.user)}}">
+                  {{ repo.user.default_email | avatar(20) | safe }}
+                  {{ repo.user.fullname }} ({{ repo.user.user }})  -  creator
+                </a>
+              </div>
+              {% for user in repo.users %}
+              <div>
+                <a href="{{ url_for('view_user', username=user.user)}}">
+                  {{ user.default_email | avatar(20) | safe }}
+                  {{ user.fullname }} ({{ user.user }})
+                </a>
+              </div>
+              {% endfor %}
+              {% for group in repo.groups %}
+              <div>
+                <a href="{{ url_for('view_group', group=group.group_name)}}">
+                  @{{ group.group_name }}
+                </a>
+              </div>
+              {% endfor %}
+            </div>
+            <h5><strong>Branches</strong></h5>
+            <div class="m-b-2">
+              {% if head %}
+              <div id="branch-{{ head }}" class="repoinfo-branchlistitem row">
+                <div class="branch_name col-md-10">
+                  {% if branchname == head %}
+                  <span class="oi text-muted" data-glyph="random"
+                    title="Default branch"></span>
+                  <strong title="Currently viewing branch {{ head }}" data-toggle="tooltip">{{ head }}</strong>
+                  {% else  %}
+                  <span class="oi text-muted" data-glyph="random"
+                    title="Default branch"></span>
+                  <a href="{{ url_for('view_repo_branch',
+                    username=username, repo=repo.name, branchname=head) }}"
+                    title="{{ head }}" data-toggle="tooltip">
+                    {{ head }}
+                  </a>
+                  {% endif %}
+                </div>
+                <div class="branch_del col-md-2">
+                  <span class="oi text-muted" data-glyph="star"
+                    title="Default branch"></span>
+                </div>
+              </div>
+              {% endif %}
+
+            {% for branch in branches if branch != head%}
+              <div id="branch-{{ branch }}" class="repoinfo-branchlistitem row">
+                <div class="branch_name col-md-8">
+                  <span class="oi text-muted" data-glyph="random"></span>
+                  {% if branchname != branch %}
+                  <a class="" href="{{ url_for('view_repo_branch',
+                    username=username, repo=repo.name, branchname=branch) }}"
+                    title="{{ branch }}" data-toggle="tooltip">{{ branch }}
+                  </a>
+                  {% else %}
+                  <strong title="Currently viewing branch {{branch}}" data-toggle="tooltip">{{ branch }}</strong>
+                  {% endif %}
+
+                </div>
+                <div class="branch_del col-md-4">
+                  {% if repo_admin and branch != head %}
+                  <form id="delete_branch_form-{{ branch | replace('/', '_') }}" action="{{
+                    url_for('.delete_branch',
+                            username=username, repo=repo.name, branchname=branch)
+                    }}" method="post" class="inline icon del_icon"
+                    onsubmit="return confirm('Are you sure you want to remove the branch: {{ branch }}?\nThis cannot be un-done!');">
+                    {{ form.csrf_token }}
+                    <a title="Remove branch {{ branch }}" href="#"
+                      onclick="$('#delete_branch_form-{{ branch | replace('/', '_') }}').submit();">
+                      <span class="oi" data-glyph="trash"></span>
+                    </a>
+                  </form>
+                  {% endif %}
+                </div>
+              </div>
+              {% endfor %}
+            </div>
+            <h5><strong>Source GIT URLs</strong>{% if
+              (authenticated and repo_admin) or
+              (config['DOC_APP_URL'] and repo and
+                      repo.settings.get('project_documentation', True))
+              %}
+                  <span class="pull-xs-right"><a data-toggle="collapse" href="#moregiturls"
+                  aria-expanded="false" aria-controls="moregiturls"
+                  id="more_gits">more</a></span>{%endif%}</h5>
+            <div>
+              <div class="form-group">
+                <div class="input-group input-group-sm">
+                  <div class="input-group-addon">SSH</div>
+                  <input class="form-control" type="text" value="{{
+                    config.get('GIT_URL_SSH') }}{{ repo.fullname }}.git" readonly>
+                </div>
+              </div>
+              <div class="form-group">
+                <div class="input-group input-group-sm">
+                  <div class="input-group-addon">GIT</div>
+                  <input class="form-control" type="text" value="{{
+                    config.get('GIT_URL_GIT') }}{{ repo.fullname }}.git" readonly>
+                </div>
+              </div>
+              <div class="collapse" id="moregiturls">
+                {% if config['DOC_APP_URL']
+                    and repo
+                    and repo.settings.get('project_documentation', True) %}
+                  <h5><strong>Docs GIT URLs</strong></h5>
+                  {% if authenticated and repo_admin %}
+                    <div class="form-group">
+                      <div class="input-group input-group-sm">
+                        <div class="input-group-addon">SSH</div>
+                        <input class="form-control" type="text" value="{{
+                          config.get('GIT_URL_SSH') }}docs/{{ repo.fullname }}.git" readonly>
+                      </div>
+                    </div>
+                  {% endif %}
+                  <div class="form-group">
+                    <div class="input-group input-group-sm">
+                      <div class="input-group-addon">GIT</div>
+                      <input class="form-control" type="text" value="{{
+                        config.get('GIT_URL_GIT') }}docs/{{ repo.fullname }}.git" readonly>
+                    </div>
+                  </div>
+                {% endif %}
+                {% if authenticated and repo_admin %}
+                  {% if config.get('ENABLE_TICKETS', True)
+                     and repo.settings.get('issue_tracker', True) %}
+                    <h5><strong>Issues GIT URLs</strong></h5>
+                    <div class="form-group">
+                      <div class="input-group input-group-sm">
+                        <div class="input-group-addon">SSH</div>
+                        <input class="form-control" type="text" value="{{
+                          config.get('GIT_URL_SSH') }}tickets/{{ repo.fullname }}.git" readonly>
+                      </div>
+                    </div>
+                  {% endif %}
+                  <h5><strong>Pull Requests GIT URLs</strong></h5>
+                  <div class="form-group">
+                    <div class="input-group input-group-sm">
+                      <div class="input-group-addon">SSH</div>
+                      <input class="form-control" type="text" value="{{
+                        config.get('GIT_URL_SSH') }}requests/{{ repo.fullname }}.git" readonly>
+                    </div>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+          <div class="repo_date" title="{{repo.date_created}}">
+              created {{repo.date_created|humanize}}
+          </div>
+        </div>
+
+        {% if last_commits %}
+          <div class="card">
+            <div class="card-header">
+              <strong>Recent Commits in
+                <span class="pr-toplabel">
+                  <span class="oi" data-glyph="random"></span>
+                  {{branchname}}
+                </span>
+              </strong>
+            </div>
+            <div class="card-block p-a-0">
+              <div class="list-group list-group-flush">
+                {% for commit in last_commits %}
+                  <a href="{{
+                      url_for('view_commit', username=username,
+                      repo=repo.name, commitid=commit.hex) }}" class="list-group-item">
+                    <div class="commitdate" title="{{ commit.commit_time|format_ts }}">
+                      <small>
+                        <strong>
+                          {{ commit.author | author2avatar(20) | safe }}
+                          {{ commit.author.name }}
+                        </strong>
+                        commited {{ commit.commit_time|humanize }}
+                      </small>
+                    </div>
+                    <div><small>
+                      {{ commit.message.split('\n')[0] }}
+                      {% if diff_commits and commit.oid.hex in diff_commits %}
+                        <span class="new_commit" title="Commit not in the main repo">*</span>
+                      {% endif %}
+                    </small></div>
+                  </a>
+                {% endfor %}
+              </div>
+              </div>
+            </div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+
+{% endblock %}
+
+{% block jscripts %}
+{{ super() }}
+<script type="text/javascript">
+$(document).ready(function() {
+    $(".extra_gits").hide();
+});
+
+$(function() {
+  $( "#more_gits" ).click(function() {
+      if ($( "#more_gits" ).html() == 'more') {
+        $( "#more_gits" ).html('less');
+      } else {
+        $( "#more_gits" ).html('more');
+      }
+  });
+
+  {% if authenticated and repo_admin %}
+  $.ajax({
+    url: '{{ url_for("internal_ns.get_pull_request_ready_branch") }}' ,
+    type: 'POST',
+    data: {
+      repo: "{{ repo.name }}",
+      repouser: "{{ repo.user.user if repo.is_fork else '' }}",
+      csrf_token: "{{ form.csrf_token.current_token }}",
+    },
+    dataType: 'json',
+    success: function(res) {
+      if (res.code == 'OK'){
+        for (branch in res.message){
+          var url = "{{ url_for(
+            'new_request_pull',
+            repo=repo.name,
+            username=repo.user.user if repo.is_fork else None,
+            branch_to=head or 'master',
+            branch_from='') }}";
+          html = '<div class="alert alert-info" role="alert"> \
+                The branch ' + branch +' contains ' + res.message[branch].length
+                +  ' commits not in the main branch \
+                <span class="pr-toplabel"> \
+                <span class="oi" data-glyph="random"> </span> \
+                {{ head }}</span> \
+                <div id="request_pull" class="col-md-2"> \
+                <a class="btn btn-primary btn-sm" href="' + url + branch + '"> Request pull </a> \
+                </div></div>';
+          /*$($('.bodycontent').find('.row').children()[0]).before(html);*/
+          {% if repo.is_fork %}
+          html2 = ' \
+                <a class="small label label-sm label-primary" data-toggle="tooltip" \
+                href="' + url + branch + '"\
+                 title="' + branch +' contains ' + res.message[branch].length+' \
+                 commit not in the upstream project. Click to create new PR now.'+'"> New PR</a> \
+                </div>';
+          {% else %}
+          html2 = ' \
+                <a class="small label label-sm label-primary" data-toggle="tooltip" \
+                href="' + url + branch + '"\
+                 title="' + branch +' contains ' + res.message[branch].length+' \
+                 commit not in the main branch. Click to create new PR now.'+'"> New PR</a> \
+                </div>';
+          {%endif%}
+          $('#branch-'+branch+' .branch_del').prepend(html2);
+          $('[data-toggle="tooltip"]').tooltip({placement : 'bottom'});
+        }
+      }
+    }
+  });
+  {% endif %}
+});
+</script>
+{% endblock %}

@@ -1,0 +1,35 @@
+{% if not is_js %}
+{% extends "repo_master.html" %}
+{% endif %}
+
+{% block repo %}
+<section class="edit_comment">
+
+  <form action="{{ request.base_url }}" method="post"
+    onsubmit="return try_async_comment(this, null)" >
+
+
+    <div class="tabs ui-widget ui-widget-content ui-corner-all"
+        id="comment_block">
+
+      <div id="edit">
+        <textarea class="form-control" id="update_comment" name="update_comment" style="width:100%;">
+          {{- comment.comment -}}
+        </textarea>
+      </div>
+
+    <div>
+
+  {{ form.csrf_token }}
+    <div>
+      <input type="hidden" name="edit_comment" value="{{ comment.id }}" />
+      <input type="submit" class="btn btn-primary" value="Update" />
+      <input type="button" id="comment_update_cancel" class="btn btn-secondary cancel" value="Cancel" {% if not is_js -%}
+        onclick="history.back();"{% endif %} />
+    </div>
+
+  </form>
+
+</section>
+
+{% endblock %}

@@ -2,18 +2,37 @@
 # Use this file by running "$ pip install -r requirements.txt"
 alembic
 arrow
+binaryornot
+bleach
+blinker
 chardet
 docutils
+enum34
 flask
 flask-wtf
+flask-multistatic
+html5lib  # required by bleach
+kitchen
 markdown
+munch
+Pillow
 psutil
 pygit2 >= 0.20.1
 pygments
-python-fedora
 python-openid
 python-openid-cla
 python-openid-teams
+redis
+six
 sqlalchemy >= 0.8
 straight.plugin==1.4.0-post-1
+trollius-redis
 wtforms
+
+
+# Required only for the `fas` and `openid` authentication backends
+python-fedora
+
+# Required only for the `local` authentication backend
+cryptography
+py-bcrypt

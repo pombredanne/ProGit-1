@@ -1,0 +1,264 @@
+{% macro render_row(items) -%}
+    {% for repo in items %}
+        {% if repo.is_fork %}
+        {% set url = url_for('view_repo', username=repo.user.username, repo=repo.name) %}
+        {% else %}
+        {% set url = url_for('view_repo', repo=repo.name) %}
+        {% endif %}
+  <div class="col-lg-4 col-md-6">
+    <div class="project_wrapper m-b-1">
+      {% if repo.avatar_email %}
+        <img class="projecticon pull-xs-left" src="{{ repo.avatar_email | avatar_url }}" width=60 height=60 />
+      {% else %}
+        <div class="projecticon pull-xs-left"><span class="oi" data-glyph="document"></span></div>
+      {% endif %}
+      <a class="project_link logo_link" href="{{ url }}">
+        <div class="repo_name"><strong>{{ repo.name }}</strong></div>
+      </a>
+      <div class="repo_desc" title="{{ repo.description }}" data-toggle="tooltip">
+        <small>{% if repo.description %}{{ repo.description }}{%else%}<span class="text-muted">no description<span>{% endif %}</small>
+      </div>
+      <div class="project_metadata">
+        <span class="p-l-1"><small>created {{repo.date_created|humanize}}</small></span>
+        <div style="text-align:right;" class="p-r-1 text-muted pull-xs-right"><span title="Forks" data-toggle="tooltip"><span class="oi" data-glyph="fork"></span>{{repo.forks|count}}</span></div>
+      </div>
+    </div>
+  </div>
+    {% else %}
+<p>No projects found</p>
+    {% endfor %}
+{%- endmacro %}
+
+
+{% macro pagination_link(pagetitle, page, total, sorting=None) -%}
+{% set prev_page = "%s?%s=%s" % (request.base_url, pagetitle, page - 1) %}
+{% set next_page = "%s?%s=%s" % (request.base_url, pagetitle, page + 1) %}
+{% if sorting %}
+{% set prev_page = "%s&sorting=%s" % (prev_page, sorting) %}
+{% set next_page = "%s&sorting=%s" % (next_page, sorting) %}
+{% endif %}
+<aside>
+    <nav class="text-center">
+      <ul class="pagination">
+        <li {% if page <= 1%} class="disabled" {% endif %}>
+          <a href="{{ prev_page }}">
+            <span aria-hidden="true">&laquo;</span>
+            <span class="sr-only">Newer</span>
+          </a>
+        </li>
+        <li class="active">page {{ page }} of {{ total }}</li>
+        <li {% if page >= total %}class="disabled"{%endif%}>
+          <a href="{{ next_page }}">
+            <span aria-hidden="true">&raquo;</span>
+            <span class="sr-only">Older</span>
+          </a>
+        </li>
+      </ul>
+    </nav>
+</aside>
+{%- endmacro %}
+
+
+{% macro render_repos(
+        list, total, pagetitle, page, title, count, id,
+        username=None, hide=True, sorting=None) %}
+
+    <section class="project_list container p-t-2" id="{{ id }}">
+        <h2 class="m-b-1">{{
+            title
+            }} <span class="label label-default">{{ count }}</span>
+            {%- if username -%}
+            <a href="{{ url_for('new_project') }}">
+            <button type="button" class="btn btn-success pull-xs-right">
+              New Project
+            </button>
+            </a>
+            {%- endif -%}
+        </h2>
+        <div class="row">
+          <div class="col-sm-6">
+            {% if total and total > 1 %}
+            {{ pagination_link(pagetitle, page, total, sorting) }}
+            {% endif %}
+          </div>
+          <div class="col-sm-6 text-xs-right">
+            <span class="btn-group">
+              <button type="button" class="btn btn-secondary dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                Sort
+              </button>
+              <div class="dropdown-menu dropdown-menu-right">
+                <a class="dropdown-item" href="{{
+                    url_for('browse_projects') }}">
+                  {% if not sorting or sorting == 'name'%}
+                  <span class="oi" data-glyph="check"></span>
+                  {%endif%}
+                  Name
+                </a>
+                <a class="dropdown-item" href="{{
+                    url_for('browse_projects', sorting='latest') }}">
+                  {% if sorting == 'latest'%}
+                  <span class="oi" data-glyph="check"></span>
+                  {%endif%}
+                  Recent First
+                </a>
+                <a class="dropdown-item" href="{{
+                    url_for('browse_projects', sorting='oldest') }}">
+                  {% if sorting == 'oldest'%}
+                  <span class="oi" data-glyph="check"></span>
+                  {%endif%}
+                  Oldest First
+                </a>
+              </div>
+            </span>
+          </div>
+        </div>
+        <div class="row">
+            {{ render_row(list) }}
+        </div>
+        {% if total and total > 1 %}
+        {{ pagination_link(pagetitle, page, total, sorting) }}
+        {% endif %}
+    </section>
+{% endmacro %}
+
+{% macro render_user_repos(
+        list, total, pagetitle, page, title, count, id, username=None, hide=True) %}
+      <div class="card" id="{{ id }}">
+          <div class="card-header">
+              {{ title }} <span class="label label-default">{{ count }}</span>
+          </div>
+          {% if total and total > 1 %}
+          {{ pagination_link(pagetitle, page, total) }}
+          {% endif %}
+          <div class="card-block">
+
+            {% for repo in list %}
+                <a class="project_link logo_link" href="{{
+                    url_for(
+                    'view_repo',
+                    username=repo.user.username if repo.is_fork else None,
+                    repo=repo.name)
+                }}">
+                    <div><strong>{{ repo.name }}</strong></div>
+               </a>
+            {% else %}
+            <p>No projects found</p>
+            {% endfor %}
+
+          </div>
+          {% if total and total > 1 %}
+          {{ pagination_link(pagetitle, page, total) }}
+          {% endif %}
+      </div>
+{% endmacro %}
+
+
+{% macro repos_switch(all=True, hide=True) %}
+    <aside class="show_parts">
+        <div class="container">
+        <strong>
+            {% if all %}My repos:{% else %}Repos:{% endif %}
+        </strong>
+        <label class="switch">
+            <input type="checkbox" class="switch-input"
+                name="{% if all %}my{% endif %}repos"
+                {%- if (
+                    (all and 'myrepos' in config.get('SHOW_PROJECTS_INDEX', []))
+                    or
+                    (not all and 'repos' not in config.get('SHOW_PROJECTS_INDEX', []))
+                  )
+                  or not hide %} checked {% endif %}/>
+            <span class="switch-label" data-on="On" data-off="Off"></span>
+            <span class="switch-handle"></span>
+        </label>
+        <strong>Forks:</strong>
+        <label class="switch">
+            <input type="checkbox" class="switch-input"
+                name="{% if all %}my{% endif %}forks" {%
+                if 'myforks' in config.get('SHOW_PROJECTS_INDEX', []) or not hide
+                %} checked {% endif %}/>
+            <span class="switch-label" data-on="On" data-off="Off"></span>
+            <span class="switch-handle"></span>
+        </label>
+        {% if all %}
+        <strong>All repos:</strong>
+        <label class="switch">
+            <input type="checkbox" class="switch-input"
+                name="repos" id="allrepos" {%
+                if 'repos' in config.get('SHOW_PROJECTS_INDEX', []) or not hide
+                %} checked {% endif %}/>
+            <span class="switch-label" data-on="On" data-off="Off"></span>
+            <span class="switch-handle"></span>
+        </label>
+        {% endif %}
+        </div>
+    </aside>
+{% endmacro %}
+
+{% macro render_repos_as_card(list, total, name, pagetitle, page, total_page) %}
+        {% if total_page and total_page > 1 %}
+        {{ pagination_link(pagetitle, page, total_page) }}
+        {% endif %}
+        <div class="card">
+          <div class="card-header">
+            {{name}} <span class="label label-default">{{total}}</span>
+          </div>
+          {% if list %}
+            <div class="list-group">
+            {% for repo in list %}
+              <div class="list-group-item">
+                {% if repo.is_fork %}
+                  {% set url = url_for('view_repo', username=repo.user.username, repo=repo.name) %}
+                {% else %}
+                  {% set url = url_for('view_repo', repo=repo.name) %}
+                {% endif %}
+
+                {% if repo.avatar_email %}
+                  <img class="projecticon pull-xs-left"
+                    src="{{ repo.avatar_email | avatar_url }}"
+                    width=60 height=60 />
+                {% else %}
+                    <div class="projecticon pull-xs-left">
+                      <span class="oi" data-glyph="document"></span>
+                    </div>
+                {% endif %}
+                <a class="project_link logo_link" href="{{ url }}">
+                    <div class="repo_name">
+                      <strong>{{ repo.name }}</strong>
+                    </div>
+                </a>
+                <div class="repo_desc" title="{{ repo.description }}"
+                    data-toggle="tooltip">
+                  <small>{% if
+                    repo.description %}{{ repo.description }}{%
+                    else %}<span class="text-muted">no description<span>{%
+                    endif %}</small>
+                </div>
+              </div>
+            {% endfor %}
+            </div>
+        {% else %}
+          <div class="card-block">
+            <p>No projects found</p>
+          </div>
+        {% endif %}
+        </div>
+        {% if total_page and total_page > 1 %}
+        {{ pagination_link(pagetitle, page, total_page) }}
+        {% endif %}
+{% endmacro %}
+
+{% macro render_contributions_graph(username) %}
+  {% if config.get('DATAGREPPER_URL') %}
+  <div class="card" id="user_graph">
+    <div class="card-header">
+      Contributions <a href="{{config.get('DATAGREPPER_URL')}}/raw?category={{config.get('DATAGREPPER_CATEGORY', 'pagure')}}&user={{username}}" class="btn btn-secondary btn-sm pull-xs-right">View List</a>
+    </div>
+    <div class="card-block p-a-0">
+      <a href="{{config.get('DATAGREPPER_URL')}}/charts/line?category={{config.get('DATAGREPPER_CATEGORY', 'pagure')}}&user={{username}}&split_on=users&delta=31536000&N=12&title=&show_y_labels=False&width=700&height=200&style=light_solarized" target="_blank">
+        <img src="{{config.get('DATAGREPPER_URL')}}/charts/line?category={{config.get('DATAGREPPER_CATEGORY', 'pagure')}}&user={{username}}&split_on=users&delta=31536000&N=12&title=&show_y_labels=False&width=400&height=200&style=light_solarized" alt="User activity graph"/>
+      </a>
+    </div>
+  </div>
+  {% endif %}
+{% endmacro%}

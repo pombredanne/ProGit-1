@@ -1,0 +1,50 @@
+{% extends "repo_master.html" %}
+{% from "_formhelper.html" import render_bootstrap_field %}
+
+{% block title %}Edit PR#{{ request.id }}: {{ request.title }} - {{ repo.name }}{% endblock %}
+{% set tag = "home" %}
+
+{% block header %}
+<link href="{{ url_for('static', filename='emoji/emojione.sprites.css') }}"
+  rel="stylesheet" />
+  <link href="{{ url_for('static', filename='selectize.bootstrap3.css') }}"
+  rel="stylesheet" />
+{% endblock %}
+
+{% block repo %}
+
+<div class="row">
+  <div class="col-md-8 col-md-offset-2">
+    <div class="card">
+      <div class="card-header">
+        Edit PR#{{ request.id }}: {{ request.title }} - {{ repo.name }}
+      </div>
+      <div class="card-block" class="edit_tag">
+        <form action="{{ url_for('.request_pull_edit',
+                           username=username, repo=repo.name, requestid=request.id)
+                         }}" method="post">
+
+          <table>
+            {{ render_bootstrap_field(
+                form.title,
+                field_description="the new title of your pull-request") }}
+            {{ render_bootstrap_field(
+                form.initial_comment,
+                field_description="description of your pull-request") }}
+          </table>
+          <p class="buttons indent">
+            <input type="submit" class="btn btn-primary" value="Edit">
+            {{ form.csrf_token }}
+            <a href="{{ url_for('request_pull',
+              username=username, repo=repo.name, requestid=request.id)}}">
+              <input type="button" class="btn btn-secondary" value="Cancel" />
+            </a>
+            {{ form.csrf_token }}
+          </p>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

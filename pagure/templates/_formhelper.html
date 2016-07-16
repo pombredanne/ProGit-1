@@ -1,0 +1,206 @@
+{% macro render_field(field, after="") %}
+<div class="row">
+  {{ field.label }}{{ field(**kwargs)|safe }}
+  {% if after %} {{ after }}{% endif %}
+  {% if field.errors %}
+  <ul class="errors">
+    {% for error in field.errors %}
+    <li>{{ error }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% macro render_bootstrap_field(field, field_description="", formclass="") %}
+  <fieldset class="form-group {% if field.errors %}has-error{% endif %} {% if formclass %}issue-metadata-form{% endif %}">
+    {% set formclasses = "form-control"%}
+    {% if field.errors %} {% set formclasses = formclasses + " form-control-error" %} {% endif %}
+    {% if field.type == "SelectField" %} {% set formclasses = formclasses + " c-select" %} {% endif %}
+
+    {% if field.type == 'BooleanField' %}
+      {% set formclasses = formclasses + " checkbox-inline" %}
+        <label class="c-input c-checkbox">
+          {{ field(type='checkbox', **kwargs) }}
+          <span class="c-indicator"></span>
+          <strong>{{ field.label }}</strong>
+        </label>
+        <br />
+        {% if field_description %}
+          <small class="text-muted">{{ field_description }}</small>
+        {% endif %}
+    {% else %}
+      <strong>{{ field.label }}</strong>
+      {{ field(class_=formclasses)|safe }}
+      <div>
+        {% if field_description %}
+          <small class="text-muted">{{field_description}}</small>
+        {% endif %}
+        {% if field.errors %}
+        <span class="pull-xs-right text-danger">
+          <small>
+          {% for error in field.errors %}
+            {{ error }}&nbsp;
+          {% endfor %}
+          </small>
+        </span>
+        {% endif %}
+      </div>
+    {% endif %}
+  </fieldset>
+{% endmacro %}
+
+(class_="c-select")
+
+{% macro render_field_invert(field, after="") %}
+<div class="row">
+  {{ field(**kwargs)|safe }}{{ field.label }}
+  {% if after %} {{ after }}{% endif %}
+  {% if field.errors %}
+  <ul class="errors">
+    {% for error in field.errors %}
+    <li>{{ error }}</li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+</div>
+{% endmacro %}
+
+{% macro render_field_in_row(field, after="") %}
+<tr>
+    <td>{{ field.label }}</td>
+    <td>{{ field(**kwargs)|safe }}</td>
+{% if after %} <td>{{ after }}</td>{% endif %}
+{% if field.errors %}
+{% for error in field.errors %}
+<td class="errors">{{ error }}</td>
+{% endfor %}
+{% endif %}
+</tr>
+{% endmacro %}
+
+{% macro render_field_in_cell(field, after="") %}
+    <td>{{ field.label }}</td>
+    <td>{{ field(**kwargs)|safe }}</td>
+{% if after %} <td>{{ after }}</td>{% endif %}
+{% if field.errors %}
+{% for error in field.errors %}
+<td class="errors">{{ error }}</td>
+{% endfor %}
+{% endif %}
+{% endmacro %}
+
+
+{% macro render_field_in_list(field) %}
+    <li>{{ field.label }}</li>
+    <li>{{ field(**kwargs)|safe }}</li>
+{% if field.errors %}
+{% for error in field.errors %}
+<li class="errors">{{ error }}</li>
+{% endfor %}
+{% endif %}
+{% endmacro %}
+
+
+{% macro show_comment(comment, id, repo, username, issueid, form, repo_admin) %}
+<div class="card clearfix">
+  <div id="comment-{{ id }}" class="card-header">
+    {{ comment.user.default_email | avatar(16) | safe }}
+    <a href="{{ url_for('view_user', username=comment.user.user)}}">
+      {{ comment.user.user }}
+    </a>
+    <a class="headerlink pull-xs-right" title="Permalink to this headline"
+      href="#comment-{{ id }}">
+      <span title="{{
+        comment.date_created.strftime('%Y-%m-%d %H:%M:%S')
+        }}">{{ comment.date_created | humanize}}</span>
+    </a>
+  </div>
+  <div class="card-block">
+    <section class="issue_comment">
+      <div>
+        <span class="edit_date" title="{{
+            comment.edited_on.strftime('%Y-%m-%d %H:%M:%S') if comment.edited_on
+        }}">
+        </span>
+        <span class="comment_text comment_body">
+        {%- if id == 0 -%}
+{{ comment.content | markdown | noJS | safe }}
+        {%- else -%}
+{{ comment.comment | markdown | noJS | safe }}
+        {%- endif -%}
+        </span>
+      </div>
+    </section>
+    <div class="issue_actions m-t-2">
+      {% if comment.edited_on %}
+          <small class="text-muted">Edited {{ comment.edited_on | humanize }} by {{ comment.editor.username }} </small>
+      {% endif %}
+      <div class="issue_action icon pull-xs-right p-b-1">
+        <div class="btn-group" role="group" aria-label="Basic example">
+          {% if id != 0 and g.fas_user and comment.parent.status in [True, 'Open'] %}
+            <a class="reply btn btn-secondary btn-sm" data-toggle="tooltip"
+                title="Reply to this comment - loose formating">
+              <span class="oi" data-glyph="share-boxed" title="Reply to this comment"></span>
+            </a>
+          {% endif %}
+          {% if id != 0 and g.fas_user and repo_admin or (
+              comment.parent.status in [True, 'Open']
+              and g.fas_user.username == comment.user.username) %}
+          <a class="btn btn-secondary btn-sm edit_btn" href="{{
+              '%s/comment/%s/edit' % (request.base_url, comment.id) }}"
+              data-comment="{{ comment.id }}" data-objid="{{ issueid }}">
+            <span class="oi" data-glyph="pencil" title="Edit comment"></span>
+          </a>
+          {% endif %}
+          {% if id != 0 and g.fas_user and repo_admin or (
+              comment.parent.status in [True, 'Open']
+              and g.fas_user.username == comment.user.username) %}
+          <button class="btn btn-secondary btn-sm" type="submit"
+              name="drop_comment" value="{{ comment.id }}"
+              onclick="return confirm('Do you really want to remove this comment?');"
+              title="Remove comment">
+            <span class="oi" data-glyph="trash"></span>
+          </button>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endmacro %}
+
+
+{% macro show_initial_comment(comment, username, repo, issueid, repo_admin, form) %}
+<div class="clearfix p-b-3">
+  <section class="issue_comment" id="comment-0">
+    <div class="comment_body">
+{{ comment.content | markdown | noJS | safe }}
+    </div>
+  </section>
+  <div class="issue_action icon pull-xs-right">
+    <div class="btn-group" role="group">
+      {% if g.fas_user %}
+        <a class="btn btn-secondary btn-sm reply"
+          title="Reply to the initial comment - loose formatting">
+          <span class="oi" data-glyph="share-boxed"></span>
+        </a>
+      {% endif %}
+      {% if repo_admin or (
+        g.fas_user and g.fas_user.username == comment.user.username) %}
+      <a class="btn btn-primary btn-sm" href="{{
+          url_for('edit_issue', username=username,
+                  repo=repo.name, issueid=issueid)
+          }}" title="Edit this issue">
+      <span class="oi" data-glyph="pencil"></span></a>
+      {% endif %}
+      {% if repo_admin %}
+        <button class="btn btn-danger btn-sm" type="submit" id="closeticket"
+            title="Delete this ticket">
+          <span class="oi" data-glyph="trash"></span>
+        </button>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endmacro %}

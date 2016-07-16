@@ -1,4 +1,10 @@
-include LICENSE README.rst requirements.txt
+include LICENSE README.rst requirements.txt UPGRADING.rst
 include createdb.py
-recursive-include progit *
+recursive-include pagure *
 recursive-include files *
+recursive-include milters *
+recursive-include tests *
+recursive-include doc *
+recursive-include alembic *
+recursive-include ev-server *
+recursive-include webhook-server *
